@@ -1,0 +1,231 @@
+local Screen = GetPartFromPort(1, "Screen") or GetPartFromPort(1, "TouchScreen")
+local GraphScreen = GetPartFromPort(3, "Screen") or GetPartFromPort(3, "TouchScreen")
+
+Screen:ClearElements()
+
+local background = Screen:CreateElement("ImageLabel", { Image = "rbxassetid://3899340539", ScaleType = Enum.ScaleType.Tile, TileSize = UDim2.fromOffset(120, 120), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = Color3.fromHex("#FFFFFF"), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(1, 1) })
+
+local scrollingFrame = Screen:CreateElement("ScrollingFrame", { ScrollBarImageColor3 = Color3.fromHex("#3E3E3E"), ScrollBarThickness = 0, Active = true, AnchorPoint = Vector2.new(0, 1), BackgroundColor3 = Color3.fromHex("#3E3E3E"), BackgroundTransparency = 0.5, BorderSizePixel = 0, Position = UDim2.new(0, 6, 1, -6), Size = UDim2.new(1, -12, 1, -44) })
+local titleContainer = Screen:CreateElement("Frame", { Active = true, BackgroundColor3 = Color3.fromHex("#3E3E3E"), BackgroundTransparency = 0.5, BorderSizePixel = 0, ClipsDescendants = true, Position = UDim2.fromOffset(6, 6), Selectable = true, Size = UDim2.new(1, -12, 0, 32), SelectionGroup = true })
+
+local header = Screen:CreateElement("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = Color3.fromHex("#1F1F1F"), BackgroundTransparency = 0.5, BorderSizePixel = 0, Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.new(1, -6, 1, -6) })
+header:AddChild(Screen:CreateElement("TextLabel", { Text = "Change", TextColor3 = Color3.fromHex("#FFFFFF"), TextScaled = true, AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.new(1 / 3, 0, 0.65, 0) }))
+header:AddChild(Screen:CreateElement("TextLabel", { Text = "Resource", TextColor3 = Color3.fromHex("#FFFFFF"), TextScaled = true, AnchorPoint = Vector2.new(0, 0.5), BackgroundTransparency = 1, Position = UDim2.fromScale(0, 0.5), Size = UDim2.new(1 / 3, 0, 0.65, 0) }))
+header:AddChild(Screen:CreateElement("TextLabel", { Text = "Amount", TextColor3 = Color3.fromHex("#FFFFFF"), TextScaled = true, AnchorPoint = Vector2.new(1, 0.5), BackgroundTransparency = 1, Position = UDim2.fromScale(1, 0.5), Size = UDim2.new(1 / 3, 0, 0.65, 0) }))
+
+background:AddChild(scrollingFrame)
+background:AddChild(titleContainer)
+	titleContainer:AddChild(header)
+
+local graphBackground, resourceGraph, graphHeaderText
+if GraphScreen then
+	GraphScreen:ClearElements()
+	
+	graphBackground = GraphScreen:CreateElement("ImageLabel", { Image = "rbxassetid://3899340539", ScaleType = Enum.ScaleType.Tile, TileSize = UDim2.fromOffset(120, 120), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = Color3.fromHex("#FFFFFF"), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(1, 1) })
+	resourceGraph = GraphScreen:CreateElement("ScrollingFrame", { BottomImage = "rbxasset://textures/ui/Scroll/scroll-middle.png", CanvasPosition = Vector2.new(20.8, 0), ScrollBarImageColor3 = Color3.fromHex("#1F1F1F"), ScrollBarThickness = 6, ScrollingDirection = Enum.ScrollingDirection.X, TopImage = "rbxasset://textures/ui/Scroll/scroll-middle.png", VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar, Active = true, AnchorPoint = Vector2.new(0, 1), BackgroundColor3 = Color3.fromHex("#3E3E3E"), BackgroundTransparency = 0.5, BorderSizePixel = 0, Position = UDim2.new(0, 6, 1, -6), Size = UDim2.new(1, -12, 1, -44) })
+	
+	local graphHeader = GraphScreen:CreateElement("Frame", { Active = true, BackgroundColor3 = Color3.fromHex("#3E3E3E"), BackgroundTransparency = 0.5, BorderSizePixel = 0, Position = UDim2.fromOffset(6, 6), Selectable = true, Size = UDim2.new(1, -12, 0, 32), SelectionGroup = true })
+	local graphHeaderContainer = Screen:CreateElement("Frame", { BackgroundColor3 = Color3.fromHex("#1F1F1F"), BackgroundTransparency = 0.5, BorderSizePixel = 0, Position = UDim2.fromOffset(3, 3), Size = UDim2.new(1, -6, 1, -6) })
+	graphHeaderText = Screen:CreateElement("TextLabel", { Text = "N/A", TextColor3 = Color3.fromHex("#FFFFFF"), TextScaled = true, BackgroundTransparency = 1, Position = UDim2.fromOffset(3, 3), Size = UDim2.new(1, -6, 0.65, 0) })
+	
+	graphBackground:AddChild(resourceGraph)
+	graphBackground:AddChild(graphHeader)
+		graphHeader:AddChild(graphHeaderContainer)
+			graphHeaderContainer:AddChild(graphHeaderText)	
+end
+
+local priorityResources = {
+	"Warhead", "AlienCore",
+	"Titanium", "Iron", "Copper",
+	"Chute", "Wire",
+	"Neutronium", "Diamond", "Aluminum", "Beryllium", "Uranium",
+	"Lead", "Gold", "Jade", "Magnesium", "Coal",
+	"Silicon", "Sulfur", "Quartz", "Ruby", "Stone", "Ice", "Flint",
+	"Glass", "Sand", "Grass", "Wood", "Stick", "Snow",
+	"Water", "Plasma", "Petroleum", "Gasoline", "Lava", "Oil",
+	"Hydrogen", "Helium", "Steam",
+}
+
+local previousAmounts = { }
+local binFrames = { }
+
+local currentSelection
+local resourceBars = { }
+
+local Components = {
+	Resource = function(Resource: string, Amount: number)
+		local resourceFrame = Screen:CreateElement(if GraphScreen then "TextButton" else "Frame", {
+			Text = if GraphScreen then "" else nil,
+			BackgroundColor3 = Color3.fromHex("#1F1F1F"),
+			BackgroundTransparency = 0.75,
+			BorderSizePixel = 0,
+			Position = UDim2.fromOffset(3, 0),
+			Size = UDim2.new(1, -6, 0, 26),
+			Selectable = false,
+			Active = false
+		})
+		
+		local resourceText = Screen:CreateElement("TextLabel", { Text = Resource, TextColor3 = Color3.fromHex("#FFFFFF"), TextScaled = true, AnchorPoint = Vector2.new(0, 0.5), BackgroundTransparency = 1, Position = UDim2.fromScale(0, 0.5), Size = UDim2.new(1 / 3, 0, 0.65, 0) })
+		local changeText = Screen:CreateElement("TextLabel", { Text = "+0", TextColor3 = Color3.fromHex("#FFFFFF"), TextScaled = true, AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.new(1 / 3, 0, 0.65, 0) })
+		local amountText = Screen:CreateElement("TextLabel", { Text = Amount, TextColor3 = Color3.fromHex("#FFFFFF"), TextScaled = true, AnchorPoint = Vector2.new(1, 0.5), BackgroundTransparency = 1, Position = UDim2.fromScale(1, 0.5), Size = UDim2.new(1 / 3, 0, 0.65, 0) })
+
+		resourceFrame:AddChild(resourceText)
+		resourceFrame:AddChild(changeText)
+		resourceFrame:AddChild(amountText)
+		
+		scrollingFrame:AddChild(resourceFrame)
+		
+		if GraphScreen then
+			resourceFrame.MouseButton1Down:Connect(function()
+				if currentSelection == Resource then return end
+				graphHeaderText.Text = Resource
+				currentSelection = Resource
+				
+				for _, bar in resourceBars do
+					bar:Destroy()
+				end table.clear(resourceBars)
+			end)
+		end
+		
+		return resourceFrame, resourceText, changeText, amountText
+	end,
+	Bar = function(ResourceCount: number)
+		if ResourceCount == 0 then
+			local text = Screen:CreateElement("TextLabel", {
+				Text = "0",
+				AnchorPoint = Vector2.new(0, 0.5), 
+				TextColor3 = Color3.fromRGB(64, 192, 255),
+				BackgroundTransparency = 1,
+				Position = UDim2.new(0, 6, 0.5, 0),
+				Size = UDim2.fromOffset(25, 15),
+				TextSize = 10,
+			})
+
+			resourceGraph:AddChild(text)
+			return text
+		end
+
+		local mainColour = if ResourceCount < 0 then Color3.fromRGB(255, 127, 127) else Color3.fromRGB(127, 255, 127)
+
+		local resourceBar = Screen:CreateElement("Frame", {
+			AnchorPoint = Vector2.new(0, 1), 
+			BackgroundColor3 = mainColour,
+			BorderSizePixel = 0,
+			Position = UDim2.new(0, 6, 0.5, 0),
+			Size = UDim2.fromOffset(25, ResourceCount)
+		})
+
+		if math.abs(ResourceCount) <= 50 then
+			resourceBar:AddChild(Screen:CreateElement("TextLabel", {
+				Text = math.abs(math.round(ResourceCount)),
+				TextColor3 = mainColour,
+				TextSize = 10,
+				AnchorPoint = Vector2.new(0.5, if ResourceCount < 0 then 0 else 1),
+				BackgroundTransparency = 1,
+				Position = UDim2.fromScale(0.5, if ResourceCount < 0 then 1 else 0),
+				AutomaticSize = Enum.AutomaticSize.XY,
+				TextXAlignment = Enum.TextXAlignment.Center,
+			}))
+		else
+			resourceBar:AddChild(Screen:CreateElement("TextLabel", {
+				Text = math.abs(math.round(ResourceCount)),
+				TextColor3 = if ResourceCount < 0 then Color3.fromRGB(200, 0, 0) else Color3.fromRGB(0, 150, 0),
+				TextSize = 10,
+				AnchorPoint = Vector2.new(0.5, if ResourceCount < 0 then 0 else 1),
+				BackgroundTransparency = 1,
+				Position = if ResourceCount < 0 then UDim2.new(0.5, 0, 0, 0) else UDim2.new(0.5, 0, 1, 0),
+				Rotation = 90,
+				AutomaticSize = Enum.AutomaticSize.Y,
+				TextXAlignment = if ResourceCount < 0 then Enum.TextXAlignment.Left else Enum.TextXAlignment.Right,
+			}))
+		end
+
+		resourceGraph:AddChild(resourceBar)
+		return resourceBar
+	end,
+}
+
+local function CleanupMaterial(material: string)
+	binFrames[material][1]:Destroy()
+	binFrames[material] = nil
+	previousAmounts[material] = nil
+end
+
+while true do
+	local startTime = tick()
+	
+	local bins = GetPartsFromPort(2, "Bin") or { }
+	local containers = GetPartsFromPort(2, "Container") or { }
+	table.move(containers, 1, #containers, #bins + 1, bins)
+
+	local materialAmounts = { }
+	local allMaterials = { }
+	local checkedBins = { }
+
+	for _, bin in bins do
+		if checkedBins[bin.GUID] then continue end
+		checkedBins[bin.GUID] = true
+
+		local material, amount = bin:GetResource(), bin:GetAmount()
+		if material == "nil" then continue end
+
+		if not materialAmounts[material] then
+			table.insert(allMaterials, material)
+			materialAmounts[material] = amount
+		else
+			materialAmounts[material] += amount
+		end
+	end
+	
+	if currentSelection then
+		while #resourceBars >= 100 do
+			table.remove(resourceBars):Destroy()
+		end
+
+		for i, barFrame in resourceBars do
+			barFrame.Position = UDim2.new(0, 6 + i * 28, 0.5, 0)
+		end
+		
+		local resourceChange = materialAmounts[currentSelection] - previousAmounts[currentSelection]
+		local newBar = Components.Bar(math.round(resourceChange))
+		table.insert(resourceBars, 1, newBar)
+
+		resourceGraph.CanvasSize = UDim2.fromOffset(6 + #resourceBars * 28, 0)
+	end
+
+	table.sort(allMaterials, function(a, b)
+		local aIndex, bIndex = table.find(priorityResources, a), table.find(priorityResources, b)
+		return if aIndex and bIndex then aIndex < bIndex elseif aIndex then true elseif bIndex then false else a < b
+	end)
+
+	for material, amount in materialAmounts do
+		if binFrames[material] then
+			local _, _, changeText, amountText = table.unpack(binFrames[material])
+			amountText.Text = math.round(amount)
+
+			local resourceChange = math.round(amount - previousAmounts[material])
+			changeText.TextColor3 = if resourceChange < 0 then Color3.new(1, 0, 0)
+				elseif resourceChange > 0 then Color3.new(0, 1, 0) else Color3.new(1, 1, 1)
+			changeText.Text = string.format("%+i", resourceChange)
+		else
+			local materialDisplay = material:gsub("(%l)(%u)", "%1 %2"):gsub("(%l)(%d+)", "%1 %2")
+			local binFrame, materialText, changeText, amountText = Components.Resource(materialDisplay, materialAmounts[material])
+			binFrames[material] = { binFrame, materialText, changeText, amountText }
+		end
+	end
+
+	for oldMaterial, _ in previousAmounts do
+		if materialAmounts[oldMaterial] then continue end
+		CleanupMaterial(oldMaterial)
+	end
+
+	for i, material in allMaterials do
+		local binFrame = binFrames[material][1]
+		binFrame.Position = UDim2.fromOffset(3, ( i - 1 ) * 29)
+		previousAmounts[material] = materialAmounts[material]
+	end
+
+	scrollingFrame.CanvasSize = UDim2.new(0, 0, 1, math.max(50, ( #allMaterials - 1 ) * 29 - scrollingFrame.AbsoluteSize.Y))
+	task.wait(1 - ( tick() - startTime ))
+end
+
